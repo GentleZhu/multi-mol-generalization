@@ -7,7 +7,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger, WandbLogger
-from pytorch_lightning.plugins import DDPPlugin
+from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_only
 from torchmdnet.module import LNNP
 from torchmdnet import datasets, priors, models
@@ -16,6 +16,7 @@ from torchmdnet.models import output_modules
 from torchmdnet.models.utils import rbf_class_mapping, act_class_mapping
 from torchmdnet.utils import LoadFromFile, LoadFromCheckpoint, save_argparse, number
 from pathlib import Path
+
 import wandb
 
 def get_args():
@@ -158,9 +159,9 @@ def main():
         dirpath=args.log_dir,
         monitor="val_loss",
         save_top_k=10,  # -1 to save all
-        period=args.save_interval,
+        every_n_epochs=args.save_interval,
         filename="{step}-{epoch}-{val_loss:.4f}-{test_loss:.4f}-{train_per_step:.4f}",
-        save_last=True,
+        save_on_train_epoch_end=True,
     )
     early_stopping = EarlyStopping("val_loss", patience=args.early_stopping_patience)
 
@@ -177,30 +178,26 @@ def main():
 
     log_code()
 
-    ddp_plugin = None
-    if "ddp" in args.distributed_backend:
-        ddp_plugin = DDPPlugin(find_unused_parameters=False, num_nodes=args.num_nodes)
 
     trainer = pl.Trainer(
+        strategy=DDPStrategy(find_unused_parameters=False),
         max_epochs=args.num_epochs,
         max_steps=args.num_steps,
         gpus=args.ngpus,
         num_nodes=args.num_nodes,
-        accelerator=args.distributed_backend,
+        accelerator='gpu',
         default_root_dir=args.log_dir,
         auto_lr_find=False,
         resume_from_checkpoint=args.load_model,
         callbacks=[early_stopping, checkpoint_callback],
         logger=[tb_logger, csv_logger, wandb_logger],
-        reload_dataloaders_every_epoch=False,
         precision=args.precision,
-        plugins=[ddp_plugin],
     )
 
     trainer.fit(model, data)
 
     # run test set after completing the fit
-    trainer.test()
+    trainer.test(model, data)
 
 
 if __name__ == "__main__":
