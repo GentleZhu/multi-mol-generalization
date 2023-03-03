@@ -46,13 +46,14 @@ class DataModule(LightningDataModule):
                 self.dataset = dataset_factory(None)
 
         self.idx_train, self.idx_val, self.idx_test = make_splits(
-            len(self.dataset),
+            self.dataset,
             self.hparams["train_size"],
             self.hparams["val_size"],
             self.hparams["test_size"],
             self.hparams["seed"],
             join(self.hparams["log_dir"], "splits.npz"),
             self.hparams["splits"],
+            split_protocol=self.hparams["split_protocol"],
         )
         print(
             f"train {len(self.idx_train)}, val {len(self.idx_val)}, test {len(self.idx_test)}"

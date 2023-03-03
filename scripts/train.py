@@ -44,6 +44,7 @@ def get_args():
     parser.add_argument('--precision', type=int, default=32, choices=[16, 32], help='Floating point precision')
     parser.add_argument('--log-dir', '-l', default='/tmp/logs', help='log file')
     parser.add_argument('--splits', default=None, help='Npz with splits idx_train, idx_val, idx_test')
+    parser.add_argument('--split_protocol', default='random', help='data split protocol, iid or scaffold')
     parser.add_argument('--train-size', type=number, default=None, help='Percentage/number of samples in training set (None to use all remaining samples)')
     parser.add_argument('--val-size', type=number, default=0.05, help='Percentage/number of samples in validation set (None to use all remaining samples)')
     parser.add_argument('--test-size', type=number, default=0.1, help='Percentage/number of samples in test set (None to use all remaining samples)')
