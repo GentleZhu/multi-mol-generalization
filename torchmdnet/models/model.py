@@ -9,7 +9,10 @@ from torchmdnet.models import output_modules
 from torchmdnet.models.wrappers import AtomFilter
 from torchmdnet import priors
 import warnings
+from pathlib import Path
 
+
+filename_features = "/shared/data3/shivama2/pre-training-via-denoising/experiments/iid_split/features/test/"
 
 def create_model(args, prior_model=None, mean=None, std=None):
     shared_args = dict(
@@ -149,7 +152,7 @@ class TorchMD_Net(nn.Module):
         super(TorchMD_Net, self).__init__()
         self.representation_model = representation_model
         self.output_model = output_model
-
+        self.file_name = 0
         self.prior_model = prior_model
         if not output_model.allow_prior_model and prior_model is not None:
             self.prior_model = None
@@ -190,6 +193,11 @@ class TorchMD_Net(nn.Module):
 
         # run the potentially wrapped representation model
         x, v, z, pos, batch = self.representation_model(z, pos, batch=batch)
+   
+        
+        # torch.save(x,filename_features+str(self.file_name)+".pt")
+        # self.file_name += 1
+   
 
         # predict noise
         noise_pred = None

@@ -1,3 +1,6 @@
+#CUDA_VISIBLE_DEVICES=1,7 python scripts/train.py --conf examples/ET-QM9-FT.yaml --layernorm-on-vec whitened --job-id iid_split --dataset-arg homo --load-model /shared/data3/qiz3/multi-mol-generalization/experiments/iid-finetuning/step=292399-epoch=339-val_loss=0.0007-test_loss=0.0150-train_per_step=0.0006.ckpt --splits /shared/data3/qiz3/multi-mol-generalization/experiments/iid-finetuning/splits.npz
+
+
 import numpy as np  # sometimes needed to avoid mkl-service error
 import sys
 import os
@@ -196,10 +199,16 @@ def main():
         precision=args.precision,
         plugins=[ddp_plugin],
     )
+    # data._get_dataloader(data.train_dataset,"train",store_dataloader=False)
+    # dl1 = data._get_dataloader(data.train_dataset, "train", store_dataloader=False)
+    # dl2 = data._get_dataloader(data.test_dataset, "test", store_dataloader=False)
+
+
 
     trainer.fit(model, data)
 
     # run test set after completing the fit
+    # trainer.test(model=model,ckpt_path=args.load_model,test_dataloaders=dl2)
     trainer.test()
 
 

@@ -51,13 +51,13 @@ rbf_type: expnorm
 redirect: false
 reduce_op: add
 save_interval: 10
-splits: null
+splits: scaffold_split.npz
 standardize: true
 test_interval: 10
 test_size: null
-train_size: 110000
+train_size: null #110000
 trainable_rbf: false
-val_size: 10000
+val_size: null #10000
 weight_decay: 0.0
 output_model_noise: null
 position_noise_scale: 0.

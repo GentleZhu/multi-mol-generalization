@@ -1,7 +1,8 @@
 from os.path import join
 from tqdm import tqdm
 import torch
-from torch.utils.data import Subset
+from torch.utils.data import Subset, ConcatDataset
+import torch_geometric.transforms as T
 from torch_geometric.data import DataLoader
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.utilities import rank_zero_warn
@@ -9,6 +10,7 @@ from torchmdnet import datasets
 from torchmdnet.utils import make_splits, MissingEnergyException
 from torch_scatter import scatter
 
+denoise_on_test = True
 
 class DataModule(LightningDataModule):
     def __init__(self, hparams, dataset=None):
@@ -33,19 +35,27 @@ class DataModule(LightningDataModule):
                         noise = torch.randn_like(data.pos) * self.hparams['position_noise_scale']
                         data.pos_target = noise
                         data.pos = data.pos + noise
+                        data.weight_scaff = self.weights[data.name]
+                        data.is_test = 1
+                        # print('here',data)
+                        # exit(0)
                         return data
                 else:
-                    transform = None
+                    def transform(data):
+                        data.weight_scaff = self.weights[data.name]
+                        return data
 
                 dataset_factory = lambda t: getattr(datasets, self.hparams["dataset"])(self.hparams["dataset_root"], dataset_arg=self.hparams["dataset_arg"], transform=t)
 
                 # Noisy version of dataset
-                self.dataset_maybe_noisy = dataset_factory(transform)
+                # self.dataset_maybe_noisy = dataset_factory(transform)
                 # Clean version of dataset
+                
                 self.dataset = dataset_factory(None)
-
-        self.idx_train, self.idx_val, self.idx_test = make_splits(
-            len(self.dataset),
+        # print(self.dataset)
+        # exit(0)
+        self.idx_train, self.idx_val, self.idx_test, self.weights = make_splits(
+            self.dataset,
             self.hparams["train_size"],
             self.hparams["val_size"],
             self.hparams["test_size"],
@@ -53,11 +63,26 @@ class DataModule(LightningDataModule):
             join(self.hparams["log_dir"], "splits.npz"),
             self.hparams["splits"],
         )
+        if denoise_on_test:
+            def transform2(data):
+                    # print('hhhh')
+                    noise = torch.randn_like(data.pos) * self.hparams['position_noise_scale']
+                    data.pos_target = noise
+                    data.pos = data.pos + noise
+                    data.weight_scaff = self.weights[data.name]
+                    data.is_test = 0
+                    return data
+        self.dataset_maybe_noisy = dataset_factory(transform)
+        if denoise_on_test:
+            self.dataset_for_mask = dataset_factory(transform2)
         print(
             f"train {len(self.idx_train)}, val {len(self.idx_val)}, test {len(self.idx_test)}"
         )
 
         self.train_dataset = Subset(self.dataset_maybe_noisy, self.idx_train)
+        # for da in self.train_dataset:
+        #     print ("nerwr",da)
+        #     exit(0)
 
         # If denoising is the only task, test/val datasets are also used for measuring denoising performance.
         if self.hparams['denoising_only']:
@@ -65,8 +90,32 @@ class DataModule(LightningDataModule):
             self.test_dataset = Subset(self.dataset_maybe_noisy, self.idx_test)            
         else:
             self.val_dataset = Subset(self.dataset, self.idx_val)
-            self.test_dataset = Subset(self.dataset, self.idx_test)
+            if denoise_on_test:
+                self.test_dataset = Subset(self.dataset_for_mask, self.idx_test)
+            else:
+                self.test_dataset = Subset(self.dataset, self.idx_test)
+        if denoise_on_test:
+            # def transform2(data):
+            #     # print('hhhh')
+            #     data.is_test = 0
+            #     return data
+            # print("HERIEJH")
+            # self.test_dataset.dataset.transform = T.compose([transform2()])
+            # # for item in self.test_dataset.dataset:
+            #     # print(item)
+            #     # item.is_test = 0
+            
+            # # for item in self.test_dataset:
+            #     # print(item)
+            #     # item.is_test = 0
+            
 
+            self.train_dataset = ConcatDataset([self.train_dataset,self.test_dataset])
+            # for item in self.train_dataset:
+            #     if item.is_test == 0:
+            #         print(item.is_test)
+
+            # exit(0)
         if self.hparams["standardize"]:
             self._standardize()
 
