@@ -10,7 +10,8 @@ from collections import defaultdict
 from IPython import embed
 
 path = "data/qm9/raw/gdb9.sdf"
-
+# iid_split_proto = False
+# weighted_proto = False
 
 
 def train_val_test_split_iid(dataset, train_size, val_size, test_size, seed, order=None):
@@ -78,25 +79,57 @@ def get_scaffold(smile):
     scaffold = MurckoScaffold.MurckoScaffoldSmiles(mol=Chem.MolFromSmiles(smile), includeChirality=False) #=Chem.MolFromSmiles(smile)
     return scaffold
 
-def get_domain_sorted_list(data_list,dslen,train_size,val_size):
+def get_domain_sorted_list(data_list,dslen,train_size,val_size,names_list,seed,order,weighted_proto,iid_split_proto):
     scaffolds = defaultdict(list)
+    weights = defaultdict()
     ind = -1
     for data in data_list:
             # print(data)
             ind = ind + 1
+            # print(names_list[ind], ind)
+            # exit(0)
             try: 
                 smile = Chem.MolToSmiles(data)
                 scaff = get_scaffold(smile)
                 scaffolds[scaff].append(ind)
             except ValueError as e:
                 scaffolds['unkown'].append(ind)
-        
+    for sc in scaffolds.keys():
+        if weighted_proto:
+            w = 1-len(sc)/dslen
+        else:
+            w = 1
+        for i in scaffolds[sc]:
+            # print(names_list[i])
+            # print('here-n+2')
+            weights[names_list[i]] = w
+    
+
+    test_size = dslen - train_size - val_size
+    if iid_split_proto:
+        total = train_size + val_size + test_size
+        idxs = np.arange(dslen, dtype=np.int)
+        if order is None:
+            idxs = np.random.default_rng(seed).permutation(idxs)
+
+        idx_train = idxs[:train_size]
+        idx_val = idxs[train_size : train_size + val_size]
+        idx_test = idxs[train_size + val_size : total]
+
+        if order is not None:
+            idx_train = [order[i] for i in idx_train]
+            idx_val = [order[i] for i in idx_val]
+            idx_test = [order[i] for i in idx_test]
+
+        return np.array(idx_train), np.array(idx_val), np.array(idx_test),weights
+    
     shuffler = list(scaffolds.keys())
+    
     np.random.shuffle(shuffler)
     # print(shuffler)
     # train_size = 110000 
     # val_size = 10000
-    test_size = dslen - train_size - val_size  
+      
     idx_train = []
     idx_val = []
     idx_test = []
@@ -141,9 +174,9 @@ def get_domain_sorted_list(data_list,dslen,train_size,val_size):
     idx_val=np.array(flat_list_val)
     idx_test=np.array(flat_list_test)
     # print(idx_test.shape)
-    return idx_train, idx_val, idx_test
+    return idx_train, idx_val, idx_test, weights
 
-def train_val_test_split_scaffold(dataset, train_size, val_size, test_size, mols):
+def train_val_test_split_scaffold(dataset, train_size, val_size, test_size, mols,names_list,seed,order,weighted_proto,iid_split_proto):
     dset_len = len(dataset)
     assert (train_size is None) + (val_size is None) + (
         test_size is None
@@ -172,7 +205,7 @@ def train_val_test_split_scaffold(dataset, train_size, val_size, test_size, mols
             val_size -= 1
         elif is_float[0]:
             train_size -= 1
-    print('scaffold split')
+
     assert train_size >= 0 and val_size >= 0 and test_size >= 0, (
         f"One of training ({train_size}), validation ({val_size}) or "
         f"testing ({test_size}) splits ended up with a negative size."
@@ -186,7 +219,7 @@ def train_val_test_split_scaffold(dataset, train_size, val_size, test_size, mols
     if total < dset_len:
         rank_zero_warn(f"{dset_len - total} samples were excluded from the dataset")
 
-    idx_train, idx_val, idx_test = get_domain_sorted_list(mols,dset_len,train_size,val_size)
+    idx_train, idx_val, idx_test,weights = get_domain_sorted_list(mols,dset_len,train_size,val_size,names_list,seed,order,weighted_proto,iid_split_proto)
     # exit()
     # idxs = np.arange(dset_len, dtype=np.int)
     # if order is None:
@@ -201,8 +234,7 @@ def train_val_test_split_scaffold(dataset, train_size, val_size, test_size, mols
     #     idx_val = [order[i] for i in idx_val]
     #     idx_test = [order[i] for i in idx_test]
 
-    return idx_train, idx_val, idx_test
-
+    return idx_train, idx_val, idx_test, weights
 
 
 def make_splits(
@@ -214,7 +246,8 @@ def make_splits(
     filename=None,
     splits=None,
     order=None,
-    split_protocol='random'
+    iid_split_proto=False,
+    weighted_proto=False
 ):
     dataset_len = len(dataset)
 
@@ -234,6 +267,15 @@ def make_splits(
         print(len(data_list))
         # print(data_list)
         # exit(0)
+        data_list = []
+        names_list = []
+        # print('here-new')
+        for i, data in enumerate(dataset):
+            d = int(data.name.split('_')[1])
+            # exit()
+            data_list.append(d)
+            names_list.append(data.name)
+        print(len(data_list))
 
         suppl = Chem.SDMolSupplier(path, removeHs=False,
                                    sanitize=False)
@@ -247,14 +289,14 @@ def make_splits(
         # print(len(data_mols))
         # exit(0)
         
-        if split_protocol == 'random':
-            idx_train, idx_val, idx_test = train_val_test_split_iid(
-                dataset, train_size, val_size, test_size, seed, order
-            )
-        elif split_protocol == 'scaffold':
-            idx_train, idx_val, idx_test = train_val_test_split_scaffold(
-                dataset, train_size, val_size, test_size, data_mols
-            )
+        # if split_protocol == 'random':
+        #     idx_train, idx_val, idx_test = train_val_test_split_iid(
+        #         dataset, train_size, val_size, test_size, seed, order
+        #     )
+        # elif split_protocol == 'scaffold':
+        idx_train, idx_val, idx_test,weights = train_val_test_split_scaffold(
+            dataset, train_size, val_size, test_size, data_mols,names_list,seed,order,weighted_proto,iid_split_proto
+        )
 
     if filename is not None:
         np.savez(filename, idx_train=idx_train, idx_val=idx_val, idx_test=idx_test)
@@ -262,7 +304,8 @@ def make_splits(
     return (
         torch.from_numpy(idx_train),
         torch.from_numpy(idx_val),
-        torch.from_numpy(idx_test),
+        torch.from_numpy(idx_test), weights 
+        
     )
 
 

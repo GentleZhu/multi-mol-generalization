@@ -6,6 +6,16 @@ from torch.nn.functional import mse_loss, l1_loss
 from pytorch_lightning import LightningModule
 from torchmdnet.models.model import create_model, load_model
 
+def weighted_mse_loss(input, target, weight,mask,mask_there=False):
+    # print('weight',weight.shape)
+    # print('input',input.shape)
+    # print('target',target.shape)
+    if mask_there:
+        # print("mask sum",mask.sum())
+        return (mask * weight * (input - target) ** 2).sum()/mask.sum()
+    else:
+        return (weight * (input - target) ** 2).mean()
+
 
 class LNNP(LightningModule):
     def __init__(self, hparams, prior_model=None, mean=None, std=None):
@@ -93,6 +103,14 @@ class LNNP(LightningModule):
 
             # force/derivative loss
             loss_dy = loss_fn(deriv, batch.dy)
+            if stage=="train":
+                if "is_test" in batch:
+                    # if not batch.is_test:
+                    loss_dy = weighted_mse_loss(deriv,batch.dy,batch.weight_scaff,batch.is_test,True)
+                    # else: 
+                    # loss_dy=0
+                else:
+                    loss_dy = weighted_mse_loss(deriv,batch.dy,batch.weight_scaff,None,False)
 
             if stage in ["train", "val"] and self.hparams.ema_alpha_dy < 1:
                 if self.ema[stage + "_dy"] is None:
@@ -117,6 +135,15 @@ class LNNP(LightningModule):
 
             # energy/prediction loss
             loss_y = loss_fn(pred, batch.y)
+            if stage=="train":
+                if "is_test" in batch:
+                    
+                    loss_y = weighted_mse_loss(pred,batch.y,batch.weight_scaff,batch.is_test,True)
+                    
+                        # loss_y = 0
+                else:
+                    loss_y = weighted_mse_loss(pred,batch.y,batch.weight_scaff,None)
+
 
             if stage in ["train", "val"] and self.hparams.ema_alpha_y < 1:
                 if self.ema[stage + "_y"] is None:

@@ -1,13 +1,15 @@
 from os.path import join
 from tqdm import tqdm
 import torch
-from torch.utils.data import Subset
+from torch.utils.data import Subset, ConcatDataset
 from torch_geometric.data import DataLoader
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.utilities import rank_zero_warn
 from torchmdnet import datasets
 from torchmdnet.utils import make_splits, MissingEnergyException
 from torch_scatter import scatter
+
+# denoise_on_test = True
 
 
 class DataModule(LightningDataModule):
@@ -34,6 +36,10 @@ class DataModule(LightningDataModule):
                         noise = torch.randn_like(data.pos) * self.hparams['position_noise_scale']
                         data.pos_target = noise
                         data.pos = data.pos + noise
+                        data.weight_scaff = self.weights[data.name]
+                        data.is_test = 1 #is_test is the mask which is 1 for training and 0 for testing
+                        # print('here',data)
+                        # exit(0)
                         return data
                 else:
                     transform = None
@@ -41,11 +47,11 @@ class DataModule(LightningDataModule):
                 dataset_factory = lambda t: getattr(datasets, self.hparams["dataset"])(self.hparams["dataset_root"], dataset_arg=self.hparams["dataset_arg"], transform=t)
 
                 # Noisy version of dataset
-                self.dataset_maybe_noisy = dataset_factory(transform)
+                
                 # Clean version of dataset
                 self.dataset = dataset_factory(None)
 
-        self.idx_train, self.idx_val, self.idx_test = make_splits(
+        self.idx_train, self.idx_val, self.idx_test, self.weights = make_splits(
             self.dataset,
             self.hparams["train_size"],
             self.hparams["val_size"],
@@ -53,8 +59,23 @@ class DataModule(LightningDataModule):
             self.hparams["seed"],
             join(self.hparams["log_dir"], "splits.npz"),
             self.hparams["splits"],
-            split_protocol=self.hparams["split_protocol"],
+            iid_split_proto=self.hparams["iid_split_proto"],
+            weighted_proto=self.hparams["weighted_proto"],
         )
+
+        if self.hparams['denoise_on_test']:
+            def transform2(data):
+                    # print('hhhh')
+                    noise = torch.randn_like(data.pos) * self.hparams['position_noise_scale']
+                    data.pos_target = noise
+                    data.pos = data.pos + noise
+                    data.weight_scaff = self.weights[data.name]
+                    data.is_test = 0 #is_test is the mask which is 1 for training and 0 for testing
+                    return data
+        self.dataset_maybe_noisy = dataset_factory(transform)
+        if self.hparams['denoise_on_test']:
+            self.dataset_for_mask = dataset_factory(transform2)
+
         print(
             f"train {len(self.idx_train)}, val {len(self.idx_val)}, test {len(self.idx_test)}"
         )
@@ -66,8 +87,15 @@ class DataModule(LightningDataModule):
             self.val_dataset = Subset(self.dataset_maybe_noisy, self.idx_val)
             self.test_dataset = Subset(self.dataset_maybe_noisy, self.idx_test)            
         else:
+            if self.hparams['denoise_on_test']:
+                self.test_dataset = Subset(self.dataset_for_mask, self.idx_test)
+            else:
+                self.test_dataset = Subset(self.dataset, self.idx_test)
             self.val_dataset = Subset(self.dataset, self.idx_val)
-            self.test_dataset = Subset(self.dataset, self.idx_test)
+        
+        if self.hparams['denoise_on_test']:
+
+            self.train_dataset = ConcatDataset([self.train_dataset,self.test_dataset])
 
         if self.hparams["standardize"]:
             self._standardize()
