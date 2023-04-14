@@ -44,7 +44,7 @@ def get_args():
     parser.add_argument('--precision', type=int, default=32, choices=[16, 32], help='Floating point precision')
     parser.add_argument('--log-dir', '-l', default='/tmp/logs', help='log file')
     parser.add_argument('--splits', default=None, help='Npz with splits idx_train, idx_val, idx_test')
-    parser.add_argument('--iid_split_proto', default=False, help='data split protocol, iid or scaffold')
+    parser.add_argument('--split_protocol', default=False, help='data split protocol, iid or scaffold')
     parser.add_argument('--weighted_proto',default=False,help='True for weights and false for no weights')
     parser.add_argument('--denoise_on_test', default=False, help='Denoise on test or not')
     parser.add_argument('--train-size', type=number, default=None, help='Percentage/number of samples in training set (None to use all remaining samples)')
