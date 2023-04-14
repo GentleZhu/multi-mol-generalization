@@ -22,6 +22,7 @@ class DataModule(LightningDataModule):
         self.dataset = dataset
 
     def setup(self, stage):
+        print('ereff')
         if self.dataset is None:
             if self.hparams["dataset"] == "Custom":
                 self.dataset = datasets.Custom(
@@ -50,7 +51,7 @@ class DataModule(LightningDataModule):
                 
                 # Clean version of dataset
                 self.dataset = dataset_factory(None)
-
+        print('here0')
         self.idx_train, self.idx_val, self.idx_test, self.weights = make_splits(
             self.dataset,
             self.hparams["train_size"],

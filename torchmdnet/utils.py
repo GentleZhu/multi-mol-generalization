@@ -252,12 +252,13 @@ def make_splits(
     dataset_len = len(dataset)
 
     if splits is not None:
+        print("WHY?")
         splits = np.load(splits)
         idx_train = splits["idx_train"]
         idx_val = splits["idx_val"]
         idx_test = splits["idx_test"]
     else:
-
+        print("HERE2")
         data_list = []
 
         for i, data in enumerate(dataset):
@@ -297,7 +298,8 @@ def make_splits(
         idx_train, idx_val, idx_test,weights = train_val_test_split_scaffold(
             dataset, train_size, val_size, test_size, data_mols,names_list,seed,order,weighted_proto,iid_split_proto
         )
-
+        print('here1')
+    print('herer2')
     if filename is not None:
         np.savez(filename, idx_train=idx_train, idx_val=idx_val, idx_test=idx_test)
 
