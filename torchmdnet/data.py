@@ -45,12 +45,13 @@ class DataModule(LightningDataModule):
                 else:
                     transform = None
 
-                dataset_factory = lambda t: getattr(datasets, self.hparams["dataset"])(self.hparams["dataset_root"], dataset_arg=self.hparams["dataset_arg"], transform=t)
-
+                self.dataset_factory = lambda t: getattr(datasets, self.hparams["dataset"])(self.hparams["dataset_root"], dataset_arg=self.hparams["dataset_arg"], transform=t)
+                # print("ok")
+                # exit(0)
                 # Noisy version of dataset
                 
                 # Clean version of dataset
-                self.dataset = dataset_factory(None)
+                self.dataset = self.dataset_factory(None)
         print('here0')
         self.idx_train, self.idx_val, self.idx_test, self.weights = make_splits(
             self.dataset,
@@ -63,6 +64,7 @@ class DataModule(LightningDataModule):
             iid_split_proto=self.hparams["iid_split_proto"],
             weighted_proto=self.hparams["weighted_proto"],
         )
+        print("jjj")
 
         if self.hparams['denoise_on_test']:
             def transform2(data):
@@ -73,9 +75,23 @@ class DataModule(LightningDataModule):
                     data.weight_scaff = self.weights[data.name]
                     data.is_test = 0 #is_test is the mask which is 1 for training and 0 for testing
                     return data
-        self.dataset_maybe_noisy = dataset_factory(transform)
+        print('UUU')
+        if self.hparams['position_noise_scale'] > 0.:
+            def transform(data):
+                noise = torch.randn_like(data.pos) * self.hparams['position_noise_scale']
+                data.pos_target = noise
+                data.pos = data.pos + noise
+                data.weight_scaff = self.weights[data.name]
+                data.is_test = 1 #is_test is the mask which is 1 for training and 0 for testing
+                # print('here',data)
+                # exit(0)
+                return data
+        else:
+            transform = None
+        self.dataset_maybe_noisy = self.dataset_factory(transform)
+        print("III")
         if self.hparams['denoise_on_test']:
-            self.dataset_for_mask = dataset_factory(transform2)
+            self.dataset_for_mask = self.dataset_factory(transform2)
 
         print(
             f"train {len(self.idx_train)}, val {len(self.idx_val)}, test {len(self.idx_test)}"
