@@ -46,7 +46,7 @@ def get_args():
     parser.add_argument('--splits', default=None, help='Npz with splits idx_train, idx_val, idx_test')
     parser.add_argument('--iid_split_proto', default=False, help='data split protocol, iid or scaffold')
     parser.add_argument('--weighted_proto',default=False,help='True for weights and false for no weights')
-    parser.add_argument('--denoise_on_test', default=True, help='Denoise on test or not')
+    parser.add_argument('--denoise_on_test', default=False, help='Denoise on test or not')
     parser.add_argument('--train-size', type=number, default=None, help='Percentage/number of samples in training set (None to use all remaining samples)')
     parser.add_argument('--val-size', type=number, default=0.05, help='Percentage/number of samples in validation set (None to use all remaining samples)')
     parser.add_argument('--test-size', type=number, default=0.1, help='Percentage/number of samples in test set (None to use all remaining samples)')

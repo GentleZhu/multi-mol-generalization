@@ -2,16 +2,18 @@ import torch
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 from torch.nn.functional import mse_loss, l1_loss
-
+import copy
 from pytorch_lightning import LightningModule
 from torchmdnet.models.model import create_model, load_model
+import numpy as np
+use_mixup = False
 
 def weighted_mse_loss(input, target, weight,mask,mask_there=False):
     # print('weight',weight.shape)
     # print('input',input.shape)
     # print('target',target.shape)
     if mask_there:
-        # print("mask sum",mask.sum())
+        print("mask sum",mask.sum())
         return (mask * weight * (input - target) ** 2).sum()/mask.sum()
     else:
         return (weight * (input - target) ** 2).mean()
@@ -68,8 +70,8 @@ class LNNP(LightningModule):
             raise ValueError(f"Unknown lr_schedule: {self.hparams.lr_schedule}")
         return [optimizer], [lr_scheduler]
 
-    def forward(self, z, pos, batch=None):
-        return self.model(z, pos, batch=batch)
+    def forward(self, z, pos, batch=None,full_batch=None):
+        return self.model(z, pos, batch=batch, full_batch=full_batch)
 
     def training_step(self, batch, batch_idx):
         return self.step(batch, mse_loss, "train")
@@ -88,7 +90,82 @@ class LNNP(LightningModule):
         with torch.set_grad_enabled(stage == "train" or self.hparams.derivative):
             # TODO: the model doesn't necessarily need to return a derivative once
             # Union typing works under TorchScript (https://github.com/pytorch/pytorch/pull/53180)
-            pred, noise_pred, deriv = self(batch.z, batch.pos, batch.batch)
+            if use_mixup and stage=="train":
+                # batch2 = copy.deepcopy(batch)
+                batch_size = batch.y.size()[0]
+                # print(batch)
+                # print('batch size',batch_size)
+                # exit(0)
+                index_shuff = np.random.permutation(batch_size).tolist()
+                # exit(0)
+                x_li = [[] for i in range(batch_size)]
+                pos_list = [[] for i in range(batch_size)]
+                pos_target_li = [[] for i in range(batch_size)]
+                z_li = [[] for i in range(batch_size)]
+                b_li = [[] for i in range(batch_size)]
+                ind = 0
+                for i in range(batch_size):
+                    # print(batch.batch.size())
+                    # exit(0)
+                    for j in range(batch.batch.size()[0]):
+                        if i == batch.batch[j]:
+                            x_li[i].append(batch.x[j])
+                            pos_list[i].append(batch.pos[j])
+                            pos_target_li[i].append(batch.pos_target[j])
+                            z_li[i].append(batch.z[j])
+                            b_li[i].append(batch.batch[j])
+               
+                x2 = [x_li[i] for i in index_shuff] #x_li[index_shuff]
+                x2_new = [item for sublist in x2 for item in sublist]
+
+                x2_new = torch.stack(x2_new)
+ 
+                pos_list2 = [pos_list[i] for i in index_shuff] # pos_list[index_shuff]
+                pos_list2_new = [item for sublist in pos_list2 for item in sublist]
+                pos_list2_new = torch.stack(pos_list2_new)
+                pos_target_li2 = [pos_target_li[i] for i in index_shuff] #pos_target_li[index_shuff]
+                pos_target_li2_new = [item for sublist in pos_target_li2 for item in sublist]
+                pos_target_li2_new = torch.stack(pos_target_li2_new)
+                z_li2 = [z_li[i] for i in index_shuff] #z_li[index_shuff]
+                z_li2_new = [item for sublist in z_li2 for item in sublist]
+                z_li2_new = torch.stack(z_li2_new)
+
+                b_li2 = [b_li[i] for i in index_shuff] #z_li[index_shuff]
+                b_li2_new = [item for sublist in b_li2 for item in sublist]
+                b_li2_new = torch.stack(b_li2_new)
+
+                    
+
+
+                batch.y2 = batch.y[index_shuff]
+                batch.x2 = x2_new
+                batch.pos2 = pos_list2_new
+                batch.pos_target2 = pos_target_li2_new
+                batch.z2 = z_li2_new
+                batch.batch2 = b_li2_new 
+                alpha = 1
+                batch.lamb = lam = np.random.beta(alpha, alpha)
+                
+
+                # exit(0)
+
+
+
+
+
+
+
+
+                # print(batch)
+                # print(batch.z.size(),batch.z.size()[0])
+                # print(batch.idx)
+                # print(batch.batch)
+                # print(batch.edge_index)
+                # exit(0)
+                pred, noise_pred, deriv = self(batch.z, batch.pos, batch.batch,batch)
+            else: 
+                pred, noise_pred, deriv = self(batch.z, batch.pos, batch.batch)
+            
 
         denoising_is_on = ("pos_target" in batch) and (self.hparams.denoising_weight > 0) and (noise_pred is not None)
 
@@ -103,14 +180,14 @@ class LNNP(LightningModule):
 
             # force/derivative loss
             loss_dy = loss_fn(deriv, batch.dy)
-            if stage=="train":
-                if "is_test" in batch:
-                    # if not batch.is_test:
-                    loss_dy = weighted_mse_loss(deriv,batch.dy,batch.weight_scaff,batch.is_test,True)
-                    # else: 
-                    # loss_dy=0
-                else:
-                    loss_dy = weighted_mse_loss(deriv,batch.dy,batch.weight_scaff,None,False)
+            # if stage=="train":
+            #     if "is_test" in batch:
+            #         # if not batch.is_test:
+            #         loss_dy = weighted_mse_loss(deriv,batch.dy,batch.weight_scaff,batch.is_test,True)
+            #         # else: 
+            #         # loss_dy=0
+            #     else:
+            #         loss_dy = weighted_mse_loss(deriv,batch.dy,batch.weight_scaff,None,False)
 
             if stage in ["train", "val"] and self.hparams.ema_alpha_dy < 1:
                 if self.ema[stage + "_dy"] is None:
@@ -134,15 +211,24 @@ class LNNP(LightningModule):
                 batch.y = batch.y.unsqueeze(1)
 
             # energy/prediction loss
-            loss_y = loss_fn(pred, batch.y)
-            if stage=="train":
-                if "is_test" in batch:
+            if use_mixup and stage=='train':
+                if batch.y.ndim == 1:
+                    batch.y = batch.y.unsqueeze(1)
+                if batch.y2.ndim == 1:
+                    batch.y2 = batch.y2.unsqueeze(1)
+                target = batch.lamb*batch.y + (1-batch.lamb)*batch.y2
+                loss_y = loss_fn(pred,target)
+            else:
+
+                loss_y = loss_fn(pred, batch.y)
+            # if stage=="train":
+                # if "is_test" in batch:
                     
-                    loss_y = weighted_mse_loss(pred,batch.y,batch.weight_scaff,batch.is_test,True)
+                #     loss_y = weighted_mse_loss(pred,batch.y,batch.weight_scaff,batch.is_test,True)
                     
-                        # loss_y = 0
-                else:
-                    loss_y = weighted_mse_loss(pred,batch.y,batch.weight_scaff,None)
+                #         # loss_y = 0
+                # else:
+                #     loss_y = weighted_mse_loss(pred,batch.y,batch.weight_scaff,None)
 
 
             if stage in ["train", "val"] and self.hparams.ema_alpha_y < 1:
@@ -162,9 +248,15 @@ class LNNP(LightningModule):
             if "y" not in batch:
                 # "use" both outputs of the model's forward (see comment above).
                 noise_pred = noise_pred + pred.sum() * 0
-                
-            normalized_pos_target = self.model.pos_normalizer(batch.pos_target)
-            loss_pos = loss_fn(noise_pred, normalized_pos_target)
+            if stage=='train' and use_mixup:
+                normalized_pos_target2 = self.model.pos_normalizer(batch.pos_target2)
+                normalized_pos_target = self.model.pos_normalizer(batch.pos_target)
+                normalized_pos_target_mixed = batch.lamb*normalized_pos_target + (1-batch.lamb)*normalized_pos_target2
+                loss_pos = loss_fn(noise_pred, normalized_pos_target)    
+            else:
+
+                normalized_pos_target = self.model.pos_normalizer(batch.pos_target)
+                loss_pos = loss_fn(noise_pred, normalized_pos_target)
             self.losses[stage + "_pos"].append(loss_pos.detach())
 
         # total loss

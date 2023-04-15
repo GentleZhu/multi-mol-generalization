@@ -52,7 +52,7 @@ class DataModule(LightningDataModule):
                 
                 # Clean version of dataset
                 self.dataset = self.dataset_factory(None)
-        print('here0')
+        # print('here0')
         self.idx_train, self.idx_val, self.idx_test, self.weights = make_splits(
             self.dataset,
             self.hparams["train_size"],
@@ -64,7 +64,7 @@ class DataModule(LightningDataModule):
             iid_split_proto=self.hparams["iid_split_proto"],
             weighted_proto=self.hparams["weighted_proto"],
         )
-        print("jjj")
+        # print("jjj")
 
         if self.hparams['denoise_on_test']:
             def transform2(data):
@@ -75,7 +75,7 @@ class DataModule(LightningDataModule):
                     data.weight_scaff = self.weights[data.name]
                     data.is_test = 0 #is_test is the mask which is 1 for training and 0 for testing
                     return data
-        print('UUU')
+        # print('UUU')
         if self.hparams['position_noise_scale'] > 0.:
             def transform(data):
                 noise = torch.randn_like(data.pos) * self.hparams['position_noise_scale']
@@ -89,7 +89,7 @@ class DataModule(LightningDataModule):
         else:
             transform = None
         self.dataset_maybe_noisy = self.dataset_factory(transform)
-        print("III")
+        # print("III")
         if self.hparams['denoise_on_test']:
             self.dataset_for_mask = self.dataset_factory(transform2)
 

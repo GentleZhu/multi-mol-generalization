@@ -181,7 +181,7 @@ class TorchMD_Net(nn.Module):
         if self.prior_model is not None:
             self.prior_model.reset_parameters()
 
-    def forward(self, z, pos, batch: Optional[torch.Tensor] = None):
+    def forward(self, z, pos, batch: Optional[torch.Tensor] = None, full_batch = None):
         assert z.dim() == 1 and z.dtype == torch.long
         batch = torch.zeros_like(z) if batch is None else batch
 
@@ -190,6 +190,10 @@ class TorchMD_Net(nn.Module):
 
         # run the potentially wrapped representation model
         x, v, z, pos, batch = self.representation_model(z, pos, batch=batch)
+        if full_batch:
+            x2,v2,z2,pos2,batch2 = self.representation_model(full_batch.z2, full_batch.pos2, batch=full_batch.batch2)
+            x = full_batch.lamb * x + (1-full_batch.lamb)*x2 
+            # v2 =
 
         # predict noise
         noise_pred = None
