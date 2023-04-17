@@ -170,7 +170,7 @@ def main():
         args.log_dir, name="tensorbord", version="", default_hp_metric=False
     )
     csv_logger = CSVLogger(args.log_dir, name="", version="")
-    wandb_logger = WandbLogger(name=args.job_id, project='pre-training-via-denoising', notes=args.wandb_notes, settings=wandb.Settings(start_method='fork', code_dir="."))
+    wandb_logger = WandbLogger(name=args.job_id, project='3d-molecule-ood', notes=args.wandb_notes, settings=wandb.Settings(start_method='fork', code_dir="."))
 
     @rank_zero_only
     def log_code():
@@ -191,7 +191,8 @@ def main():
         auto_lr_find=False,
         resume_from_checkpoint=args.load_model,
         callbacks=[early_stopping, checkpoint_callback],
-        logger=[tb_logger, csv_logger, wandb_logger],
+        #logger=[tb_logger, csv_logger, wandb_logger],
+        logger=[wandb_logger],
         precision=args.precision,
     )
 

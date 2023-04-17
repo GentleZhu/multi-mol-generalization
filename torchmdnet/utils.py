@@ -89,8 +89,7 @@ def get_domain_sorted_list(data_list,dslen,train_size,val_size):
                 scaff = get_scaffold(smile)
                 scaffolds[scaff].append(ind)
             except ValueError as e:
-                scaffolds['unkown'].append(ind)
-        
+                scaffolds['unknown'].append(ind)
     shuffler = list(scaffolds.keys())
     np.random.shuffle(shuffler)
     # print(shuffler)
@@ -101,19 +100,19 @@ def get_domain_sorted_list(data_list,dslen,train_size,val_size):
     idx_val = []
     idx_test = []
     visited = set()
+
     for index, i in enumerate(shuffler): 
         if (len(scaffolds[i]) + len(idx_test) <= test_size) and (i not in visited):
             idx_test.extend(scaffolds[i])
             # idx_test = [item for sublist in idx_test for item in sublist]
             visited.add(i)
         #    shuffler.remove(scaffolds[])
-
     for index, i in enumerate(shuffler):
         if (len(scaffolds[i]) + len(idx_val) <= val_size) and (i not in visited):
             idx_val.extend(scaffolds[i])
             # idx_val = [item for sublist in idx_val for item in sublist]
             visited.add(i)
-    
+
     for index, i in enumerate(shuffler):
         #  if len(idx_test) < test_size:
         if i not in visited:
@@ -125,18 +124,6 @@ def get_domain_sorted_list(data_list,dslen,train_size,val_size):
     flat_list_val = idx_val #[item for sublist in idx_val for item in sublist]
     flat_list_train = idx_train #[item for sublist in idx_train for item in sublist]
 
-    # print(flat_list_test)
-    print(len(flat_list_val))
-    print(len(flat_list_train))
-    print(len(flat_list_test))
-    print(dslen)
-    # print(max(flat_list_train))
-    # print(max(flat_list_test))
-    # print(max(flat_list_val))
-    print(len(flat_list_test)+len(flat_list_train)+len(flat_list_val))
-    # print(min(flat_list_train))
-    # print(min(flat_list_test))
-    # print(min(flat_list_val))
     idx_train=np.array(flat_list_train)
     idx_val=np.array(flat_list_val)
     idx_test=np.array(flat_list_test)

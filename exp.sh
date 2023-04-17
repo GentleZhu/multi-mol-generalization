@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=5 python scripts/train.py --conf examples/ET-QM9-FT.yaml --layernorm-on-vec whitened --job-id iid-finetuning-homo --dataset-arg homo --pretrained-model checkpoints/denoised-pcqm4mv2.ckpt

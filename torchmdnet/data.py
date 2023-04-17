@@ -63,6 +63,7 @@ class DataModule(LightningDataModule):
 
         # If denoising is the only task, test/val datasets are also used for measuring denoising performance.
         if self.hparams['denoising_only']:
+        #if True:
             self.val_dataset = Subset(self.dataset_maybe_noisy, self.idx_val)
             self.test_dataset = Subset(self.dataset_maybe_noisy, self.idx_test)            
         else:
