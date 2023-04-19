@@ -144,7 +144,9 @@ class TorchMD_ET(nn.Module):
             else:
                 raise ValueError(f"{self.layernorm_on_vec} not recognized.")
             
+        
         self.reset_parameters()
+        #self.freeze_parameters()
 
     def reset_parameters(self):
         self.embedding.reset_parameters()
@@ -156,9 +158,20 @@ class TorchMD_ET(nn.Module):
         self.out_norm.reset_parameters()
         if self.layernorm_on_vec:
             self.out_norm_vec.reset_parameters()
+    
+    def freeze_parameters(self):
+        self.embedding.requires_grad_(False)
+        self.distance_expansion.requires_grad_(False)
+        if self.neighbor_embedding is not None:
+            self.neighbor_embedding.requires_grad_(False)
+        for attn in self.attention_layers:
+            attn.requires_grad_(False)
+        self.out_norm.requires_grad_(False)
+        if self.layernorm_on_vec:
+            self.out_norm_vec.requires_grad_(False)
 
     def forward(self, z, pos, batch):
-        x = self.embedding(z)
+        x = self.embedding(z) 
 
         edge_index, edge_weight, edge_vec = self.distance(pos, batch)
         assert (

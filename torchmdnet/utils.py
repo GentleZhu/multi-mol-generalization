@@ -8,6 +8,8 @@ from rdkit import Chem
 from rdkit.Chem.Scaffolds import MurckoScaffold
 from collections import defaultdict
 from IPython import embed
+from rdkit.Chem import BRICS, Recap
+from collections import defaultdict
 
 path = "data/qm9/raw/gdb9.sdf"
 
@@ -73,28 +75,46 @@ def train_val_test_split_iid(dataset, train_size, val_size, test_size, seed, ord
 
     return np.array(idx_train), np.array(idx_val), np.array(idx_test)
 
-def get_scaffold(smile):
+def get_scaffold(mol):
 
-    scaffold = MurckoScaffold.MurckoScaffoldSmiles(mol=Chem.MolFromSmiles(smile), includeChirality=False) #=Chem.MolFromSmiles(smile)
+    #scaffold = MurckoScaffold.MurckoScaffoldSmiles(mol=Chem.MolFromSmiles(smile), includeChirality=False) #=Chem.MolFromSmiles(smile)
+    scaffold = MurckoScaffold.MurckoScaffoldSmiles(mol=mol, includeChirality=False) #=Chem.MolFromSmiles(smile)
     return scaffold
+
+def get_motif_vocab(mol_motif_dict, vocab_size=1000):
+    motif_freq = defaultdict(int)
+    for _, mol_motif in mol_motif_dict.items():
+        for motif in mol_motif:
+            motif_freq[motif] += 1
+    motif_vocab = set([pair[0]  for pair in sorted(motif_freq.items(), key=lambda x:x[1], reverse=True)[:vocab_size]])
+    #embed()
+    mol_motif_list = defaultdict(list)
+    for idx in mol_motif_dict:
+        for mol_motif in mol_motif_dict[idx]:
+            if mol_motif in motif_vocab:
+                mol_motif_list[idx].append(mol_motif)
+    return mol_motif_list, motif_vocab
 
 def get_domain_sorted_list(data_list,dslen,train_size,val_size):
     scaffolds = defaultdict(list)
     ind = -1
-    for data in data_list:
-            # print(data)
-            ind = ind + 1
-            try: 
-                smile = Chem.MolToSmiles(data)
-                scaff = get_scaffold(smile)
+    
+    substructures = dict()
+    for ind, mol in enumerate(data_list):
+            if mol is not None:
+                # get the motifs
+                substructures[ind] = BRICS.BRICSDecompose(mol)
+                scaff = get_scaffold(mol)
                 scaffolds[scaff].append(ind)
-            except ValueError as e:
+            #except ValueError as e:
+            else:
                 scaffolds['unknown'].append(ind)
+    # TODO: attach mol_motif to dataset
+    mol_motif_list, motif_vocab = get_motif_vocab(substructures)
+    #breakpoint()
     shuffler = list(scaffolds.keys())
     np.random.shuffle(shuffler)
-    # print(shuffler)
-    # train_size = 110000 
-    # val_size = 10000
+
     test_size = dslen - train_size - val_size  
     idx_train = []
     idx_val = []
@@ -123,6 +143,25 @@ def get_domain_sorted_list(data_list,dslen,train_size,val_size):
     flat_list_test = idx_test #[item for sublist in idx_test for item in sublist]
     flat_list_val = idx_val #[item for sublist in idx_val for item in sublist]
     flat_list_train = idx_train #[item for sublist in idx_train for item in sublist]
+
+    # check motif coverage
+    '''
+    known_motifs = set()
+    for _idx in idx_train:
+        for motif in mol_motif_list[_idx]:
+            known_motifs.add(motif)
+    
+    number_unseen_motifs, number_test_motifs = 0, 0
+    for _idx in idx_test:
+        if len(mol_motif_list[_idx]) > 0:
+            number_test_motifs += 1
+            for motif in mol_motif_list[_idx]:
+                if motif not in known_motifs:
+                    number_unseen_motifs += 1
+                    break
+            
+    embed()
+    '''
 
     idx_train=np.array(flat_list_train)
     idx_val=np.array(flat_list_val)
@@ -213,27 +252,22 @@ def make_splits(
     else:
 
         data_list = []
-
+        
         for i, data in enumerate(dataset):
             d = int(data.name.split('_')[1])
             # exit()
             data_list.append(d)
-        print(len(data_list))
-        # print(data_list)
-        # exit(0)
-
-        suppl = Chem.SDMolSupplier(path, removeHs=False,
-                                   sanitize=False)
-
-        data_mols = []
-        for i, data in enumerate(suppl):
-            if i+1 in data_list:
-                data_mols.append(data)
-            # else:
-                # print('wtf')
-        # print(len(data_mols))
-        # exit(0)
+        suppl = Chem.SDMolSupplier(path, removeHs=True,sanitize=True)
         
+        #breakpoint()
+        data_mols = []
+        
+        #638 invalid ones, None
+        data_list = set(data_list)
+        for i, data in enumerate(suppl):
+            if i+1 in data_list: 
+                data_mols.append(data)
+        #embed()
         if split_protocol == 'random':
             idx_train, idx_val, idx_test = train_val_test_split_iid(
                 dataset, train_size, val_size, test_size, seed, order

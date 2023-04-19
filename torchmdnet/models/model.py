@@ -123,7 +123,8 @@ def load_model(filepath, args=None, device="cpu", mean=None, std=None, **kwargs)
     if len(loading_return.unexpected_keys) > 0:
         # Should only happen if not applying denoising during fine-tuning.
         assert all(("output_model_noise" in k or "pos_normalizer" in k) for k in loading_return.unexpected_keys)
-    assert len(loading_return.missing_keys) == 0, f"Missing keys: {loading_return.missing_keys}"
+    
+    #assert len(loading_return.missing_keys) == 0, f"Missing keys: {loading_return.missing_keys}"
 
     if mean:
         model.mean = mean
@@ -180,6 +181,7 @@ class TorchMD_Net(nn.Module):
         self.output_model.reset_parameters()
         if self.prior_model is not None:
             self.prior_model.reset_parameters()
+        # self.prompt_token = nn.Parameter(torch.randn(hidden_channels,))
 
     def forward(self, z, pos, batch: Optional[torch.Tensor] = None):
         assert z.dim() == 1 and z.dtype == torch.long
@@ -199,6 +201,14 @@ class TorchMD_Net(nn.Module):
         # apply the output network
         x = self.output_model.pre_reduce(x, v, z, pos, batch)
 
+        # TODO: compare aggr then map
+        
+        # x -> [total_atoms in the batch, :]
+        # f(motif)
+        # data.motifs -> [#batch_size, #max_motifs, hidden_dim], row -> [0,5,-1,-1,-1]
+        # nn.Embedding[0]=[empty motif]
+        # batch - >[0,0,0,0,1,1,1,...,127,127]
+
         # scale by data standard deviation
         if self.std is not None:
             x = x * self.std
@@ -209,7 +219,9 @@ class TorchMD_Net(nn.Module):
 
         # aggregate atoms
         out = scatter(x, batch, dim=0, reduce=self.reduce_op)
-
+        
+        # TODO: combine out and data.motifs 
+        
         # shift by data mean
         if self.mean is not None:
             out = out + self.mean

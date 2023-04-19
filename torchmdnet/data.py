@@ -55,6 +55,7 @@ class DataModule(LightningDataModule):
             self.hparams["splits"],
             split_protocol=self.hparams["split_protocol"],
         )
+        # data.motifs
         print(
             f"train {len(self.idx_train)}, val {len(self.idx_val)}, test {len(self.idx_test)}"
         )
