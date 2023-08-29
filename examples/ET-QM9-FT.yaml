@@ -36,8 +36,8 @@ max_num_neighbors: 32
 max_z: 100
 model: equivariant-transformer
 neighbor_embedding: true
-ngpus: -1
-num_epochs: 3000
+ngpus: 3
+num_epochs: 300
 num_steps: 300000
 num_heads: 8
 num_layers: 8
@@ -52,7 +52,7 @@ redirect: false
 reduce_op: add
 save_interval: 10
 splits: null
-split_protocol: scaffold
+split_protocol: random
 standardize: true
 test_interval: 10
 test_size: null

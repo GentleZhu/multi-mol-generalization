@@ -16,6 +16,11 @@ from torchmdnet.models import output_modules
 from torchmdnet.models.utils import rbf_class_mapping, act_class_mapping
 from torchmdnet.utils import LoadFromFile, LoadFromCheckpoint, save_argparse, number
 from pathlib import Path
+from peft import (
+    LoraConfig,
+    inject_adapter_in_model,
+    get_peft_model
+)
 
 import wandb
 
@@ -57,6 +62,7 @@ def get_args():
     parser.add_argument('--wandb-notes', default="", type=str, help='Notes passed to wandb experiment.')
     parser.add_argument('--job-id', default="auto", type=str, help='Job ID. If auto, pick the next available numeric job id.')
     parser.add_argument('--pretrained-model', default=None, type=str, help='Pre-trained weights checkpoint.')
+    parser.add_argument('--lora_mode', default=False, type=str, help='Enable LORA mode or no')
 
     # dataset specific
     parser.add_argument('--dataset', default=None, type=str, choices=datasets.__all__, help='Name of the torch_geometric dataset')
@@ -170,7 +176,7 @@ def main():
         args.log_dir, name="tensorbord", version="", default_hp_metric=False
     )
     csv_logger = CSVLogger(args.log_dir, name="", version="")
-    wandb_logger = WandbLogger(name=args.job_id, project='3d-molecule-ood', notes=args.wandb_notes, settings=wandb.Settings(start_method='fork', code_dir="."))
+    wandb_logger = WandbLogger(name=args.job_id, project='LORA_Runs', notes=args.wandb_notes, settings=wandb.Settings(start_method='fork', code_dir="."))
 
     @rank_zero_only
     def log_code():
@@ -178,21 +184,33 @@ def main():
         wandb.run.log_code(".", include_fn=lambda path: path.endswith(".py") or path.endswith(".yaml"))
 
     log_code()
-
-
+    # model =
+    if args.lora_mode:
+        config = LoraConfig(
+            r=4,
+            lora_alpha=16,
+            target_modules=['q_proj','v_proj'],
+            lora_dropout=0.05,
+            bias="none")
+        model = inject_adapter_in_model(config, model)
+    # model = get_peft_model(model,config)
+    # model.print_trainable_parameters()
+    
+    
     trainer = pl.Trainer(
         strategy=DDPStrategy(find_unused_parameters=False),
         max_epochs=args.num_epochs,
         max_steps=args.num_steps,
-        gpus=args.ngpus,
+        accelerator="auto",
+        devices=args.ngpus,
+        # gpus=args.ngpus,
         num_nodes=args.num_nodes,
-        accelerator='gpu',
         default_root_dir=args.log_dir,
-        auto_lr_find=False,
-        resume_from_checkpoint=args.load_model,
+        # auto_lr_find=False,
+        # resume_from_checkpoint=args.load_model,
         callbacks=[early_stopping, checkpoint_callback],
-        #logger=[tb_logger, csv_logger, wandb_logger],
-        logger=[wandb_logger],
+        logger=[tb_logger, csv_logger, wandb_logger],
+        # logger=[wandb_logger],
         precision=args.precision,
     )
 

@@ -169,20 +169,19 @@ class LNNP(LightningModule):
         super().optimizer_step(*args, **kwargs)
         optimizer.zero_grad()
 
-    def training_epoch_end(self, training_step_outputs):
-        dm = self.trainer.datamodule
-        if hasattr(dm, "test_dataset") and len(dm.test_dataset) > 0:
-            should_reset = (
-                self.current_epoch % self.hparams.test_interval == 0
-                or (self.current_epoch - 1) % self.hparams.test_interval == 0
-            )
-            if should_reset:
-                # reset validation dataloaders before and after testing epoch, which is faster
-                # than skipping test validation steps by returning None
-                self.trainer.reset_val_dataloader(self)
-
+    # def on_train_epoch_end(self):
+    #     dm = self.trainer.datamodule
+    #     if hasattr(dm, "test_dataset") and len(dm.test_dataset) > 0:
+    #         should_reset = (
+    #             self.current_epoch % self.hparams.test_interval == 0
+    #             or (self.current_epoch - 1) % self.hparams.test_interval == 0
+    #         )
+    #         if should_reset:
+    #             # reset validation dataloaders before and after testing epoch, which is faster
+    #             # than skipping test validation steps by returning None
+    #             self.trainer.reset_val_dataloader(self)
     # TODO(shehzaidi): clean up this function, redundant logging if dy loss exists.
-    def validation_epoch_end(self, validation_step_outputs):
+    def on_validation_epoch_end(self):
         if not self.trainer.sanity_checking:
             # construct dict of logged metrics
             result_dict = {
